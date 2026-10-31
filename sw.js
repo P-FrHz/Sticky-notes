@@ -1,4 +1,4 @@
-const CACHE = 'sticky-notes-v1';
+const CACHE = 'sticky-notes-v2';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

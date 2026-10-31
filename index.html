@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ملاحظاتي">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#cfd8d2">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>ملاحظاتي اللاصقة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600&family=Lemonada:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --wall: #cfd8d2;
+    --wall-ink: #24332f;
+    --ink: #2b2417;
+    --shadow: rgba(30, 40, 35, .28);
+    --banner-bg: #24332f;
+    --banner-ink: #fff;
+    --fab-bg: #24332f;
+    --fab-ink: #fff;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --wall: #1b2523;
+      --wall-ink: #dfe9e4;
+      --shadow: rgba(0, 0, 0, .55);
+      --banner-bg: #f1f5f2;
+      --banner-ink: #1b2523;
+      --fab-bg: #f1f5f2;
+      --fab-ink: #1b2523;
+    }
+  }
+  :root[data-theme="dark"] {
+    --wall: #1b2523;
+    --wall-ink: #dfe9e4;
+    --shadow: rgba(0, 0, 0, .55);
+    --banner-bg: #f1f5f2;
+    --banner-ink: #1b2523;
+    --fab-bg: #f1f5f2;
+    --fab-ink: #1b2523;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--wall);
+    color: var(--wall-ink);
+    font-family: "IBM Plex Sans Arabic", system-ui, sans-serif;
+  }
+  header { padding: 22px 18px 6px; }
+  h1 { margin: 0; font-size: 1.5rem; font-weight: 600; }
+  header p { margin: 4px 0 0; font-size: .9rem; opacity: .75; }
+
+  #board {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px 14px;
+    padding: 22px 14px 130px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  @media (min-width: 640px) { #board { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (min-width: 900px) { #board { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+  .note {
+    position: relative;
+    background: var(--c);
+    color: var(--ink);
+    min-height: 170px;
+    padding: 20px 12px 10px;
+    border-radius: 3px 3px 14px 3px;
+    box-shadow: 0 10px 14px -6px var(--shadow), 0 1px 0 rgba(255,255,255,.35) inset;
+    transform: rotate(var(--r));
+    display: flex;
+    flex-direction: column;
+    transition: transform .15s ease, opacity .2s ease;
+  }
+  .note:focus-within { transform: rotate(0deg) scale(1.02); z-index: 2; }
+  .note::before {
+    content: "";
+    position: absolute;
+    top: 6px; left: 50%;
+    width: 12px; height: 12px;
+    margin-left: -6px;
+    border-radius: 50%;
+    background: rgba(0,0,0,.28);
+    box-shadow: inset 0 -2px 2px rgba(255,255,255,.35);
+  }
+  .note.done { opacity: .55; }
+  .note.done textarea { text-decoration: line-through; }
+  .note.late .due { background: #b3261e; color: #fff; }
+
+  textarea {
+    flex: 1;
+    width: 100%;
+    min-height: 90px;
+    border: 0;
+    outline: 0;
+    resize: none;
+    background: transparent;
+    color: inherit;
+    font-family: "Lemonada", "IBM Plex Sans Arabic", sans-serif;
+    font-size: 1rem;
+    line-height: 1.9;
+    padding: 0;
+    overflow: hidden;
+  }
+  textarea::placeholder { color: rgba(43,36,23,.5); }
+
+  .foot { display: flex; align-items: center; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+  .foot .sp { flex: 1; }
+  .due {
+    font-size: .72rem;
+    padding: 3px 8px;
+    border-radius: 99px;
+    background: rgba(0,0,0,.12);
+    border: 0;
+    color: inherit;
+    font-family: inherit;
+  }
+  .ibtn {
+    width: 34px; height: 34px;
+    display: grid; place-items: center;
+    border: 0; border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    font-size: 1.05rem;
+    cursor: pointer;
+  }
+  .ibtn:active { background: rgba(0,0,0,.12); }
+  .ibtn:focus-visible, .fab:focus-visible, .banner button:focus-visible, .due:focus-visible, textarea:focus-visible {
+    outline: 2px solid currentColor; outline-offset: 2px;
+  }
+  .dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(0,0,0,.35); background: var(--next); }
+  input[type="datetime-local"] {
+    font-family: inherit; font-size: .8rem; width: 100%;
+    margin-top: 6px; padding: 6px; border-radius: 8px;
+    border: 1px solid rgba(0,0,0,.3); background: rgba(255,255,255,.6); color: var(--ink);
+  }
+
+  .empty { grid-column: 1 / -1; text-align: center; padding: 60px 20px; opacity: .8; line-height: 1.9; }
+
+  .fab {
+    position: fixed;
+    inset-inline-end: 20px;
+    bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    width: 62px; height: 62px;
+    border-radius: 50%;
+    border: 0;
+    background: var(--fab-bg);
+    color: var(--fab-ink);
+    font-size: 2rem;
+    line-height: 1;
+    box-shadow: 0 8px 18px var(--shadow);
+    cursor: pointer;
+  }
+  .fab:active { transform: scale(.94); }
+
+  .banners {
+    position: fixed; z-index: 10;
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    inset-inline: 10px;
+    display: grid; gap: 8px;
+  }
+  .banner {
+    background: var(--banner-bg);
+    color: var(--banner-ink);
+    border-radius: 14px;
+    padding: 12px 14px;
+    box-shadow: 0 10px 24px var(--shadow);
+    display: flex; align-items: center; gap: 8px;
+    animation: drop .3s ease;
+  }
+  .banner span { flex: 1; font-size: .95rem; line-height: 1.6; }
+  .banner button {
+    border: 1px solid currentColor; background: transparent; color: inherit;
+    border-radius: 99px; padding: 6px 12px; font-family: inherit; font-size: .8rem; cursor: pointer;
+  }
+  @keyframes drop { from { transform: translateY(-14px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .banner { animation: none; } .note { transition: none; } }
+</style>
+</head>
+<body>
+<div class="banners" id="banners" role="status" aria-live="polite"></div>
+<header>
+  <h1>ملاحظاتي</h1>
+  <p>اكتب تذكيرك، حدّد وقته، ولا تنساه.</p>
+</header>
+<main id="board"></main>
+<button class="fab" id="add" aria-label="ملاحظة جديدة">+</button>
+
+<script>
+(function () {
+  var KEY = 'sticky-notes-v1';
+  var COLORS = ['#FFE14D', '#FF9EBB', '#8FE3B7', '#8CC9FF', '#FFB36B'];
+  var board = document.getElementById('board');
+  var banners = document.getElementById('banners');
+  var openPickers = {};
+
+  function load() {
+    try { var d = JSON.parse(localStorage.getItem(KEY)); return Array.isArray(d) ? d : []; }
+    catch (e) { return []; }
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(notes)); } catch (e) {} }
+  var notes = load();
+
+  function fmt(ms) {
+    return new Date(ms).toLocaleString('ar-u-ca-gregory', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  }
+  function toInput(ms) {
+    var d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000);
+    return d.toISOString().slice(0, 16);
+  }
+  function grow(t) { t.style.height = 'auto'; t.style.height = Math.max(90, t.scrollHeight) + 'px'; }
+  function nextColor(c) { return COLORS[(COLORS.indexOf(c) + 1) % COLORS.length]; }
+  function byId(id) { return notes.filter(function (n) { return n.id === id; })[0]; }
+
+  function btn(label, text, cls, fn) {
+    var b = document.createElement('button');
+    b.className = cls; b.type = 'button'; b.setAttribute('aria-label', label); b.textContent = text;
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  function render(focusId) {
+    board.innerHTML = '';
+    if (!notes.length) {
+      var e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = 'ما عندك ملاحظات للحين. اضغط + وأضف أول تذكير.';
+      board.appendChild(e);
+      return;
+    }
+    notes.forEach(function (n) {
+      var el = document.createElement('div');
+      var late = n.due && !n.done && n.due < Date.now();
+      el.className = 'note' + (n.done ? ' done' : '') + (late ? ' late' : '');
+      el.style.setProperty('--c', n.color);
+      el.style.setProperty('--r', (((n.id % 5) - 2) * 1.1) + 'deg');
+
+      var ta = document.createElement('textarea');
+      ta.value = n.text;
+      ta.placeholder = 'اكتب تذكيرك هنا';
+      ta.setAttribute('aria-label', 'نص الملاحظة');
+      ta.addEventListener('input', function () { n.text = ta.value; grow(ta); save(); });
+      el.appendChild(ta);
+
+      var foot = document.createElement('div');
+      foot.className = 'foot';
+      if (n.due) {
+        var chip = document.createElement('button');
+        chip.type = 'button'; chip.className = 'due';
+        chip.textContent = '⏰ ' + fmt(n.due);
+        chip.addEventListener('click', function () { openPickers[n.id] = !openPickers[n.id]; render(); });
+        foot.appendChild(chip);
+      } else {
+        foot.appendChild(btn('أضف وقت التذكير', '⏰', 'ibtn', function () { openPickers[n.id] = !openPickers[n.id]; render(); }));
+      }
+      var sp = document.createElement('span'); sp.className = 'sp'; foot.appendChild(sp);
+
+      var dotBtn = btn('غيّر اللون', '', 'ibtn', function () { n.color = nextColor(n.color); save(); render(); });
+      var dot = document.createElement('span'); dot.className = 'dot'; dot.style.setProperty('--next', nextColor(n.color));
+      dotBtn.appendChild(dot); foot.appendChild(dotBtn);
+      foot.appendChild(btn(n.done ? 'ألغِ الإنجاز' : 'تم', n.done ? '↺' : '✓', 'ibtn', function () { n.done = !n.done; save(); render(); }));
+      foot.appendChild(btn('احذف', '🗑', 'ibtn', function () {
+        notes = notes.filter(function (x) { return x.id !== n.id; }); save(); render();
+      }));
+      el.appendChild(foot);
+
+      if (openPickers[n.id]) {
+        var inp = document.createElement('input');
+        inp.type = 'datetime-local';
+        inp.setAttribute('aria-label', 'وقت التذكير');
+        if (n.due) inp.value = toInput(n.due);
+        inp.addEventListener('change', function () {
+          n.due = inp.value ? new Date(inp.value).getTime() : null;
+          n.alerted = false;
+          openPickers[n.id] = false; save(); render();
+        });
+        el.appendChild(inp);
+      }
+      board.appendChild(el);
+      grow(ta);
+      if (n.id === focusId) ta.focus();
+    });
+  }
+
+  document.getElementById('add').addEventListener('click', function () {
+    var id = Date.now();
+    notes.unshift({ id: id, text: '', color: COLORS[id % COLORS.length], due: null, done: false, alerted: false });
+    save(); render(id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  function showBanner(n) {
+    var b = document.createElement('div');
+    b.className = 'banner';
+    var s = document.createElement('span');
+    s.textContent = '⏰ ' + (n.text.trim() || 'تذكير بدون نص');
+    b.appendChild(s);
+    var snooze = document.createElement('button');
+    snooze.textContent = 'بعد 10 د';
+    snooze.addEventListener('click', function () { n.due = Date.now() + 10 * 60000; n.alerted = false; save(); b.remove(); render(); });
+    var ok = document.createElement('button');
+    ok.textContent = 'تم';
+    ok.addEventListener('click', function () { n.done = true; save(); b.remove(); render(); });
+    b.appendChild(snooze); b.appendChild(ok);
+    banners.appendChild(b);
+    try { if (navigator.vibrate) navigator.vibrate(200); } catch (e) {}
+  }
+
+  function check() {
+    var now = Date.now(), changed = false;
+    notes.forEach(function (n) {
+      if (n.due && !n.done && !n.alerted && n.due <= now) {
+        n.alerted = true; changed = true; showBanner(n);
+      }
+    });
+    if (changed) { save(); render(); }
+  }
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+
+  render();
+  check();
+  setInterval(check, 15000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+})();
+</script>
+</body>
+</html>

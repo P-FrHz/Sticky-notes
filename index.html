@@ -652,6 +652,29 @@
     window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
   }
 
+  /* ---------- tap anywhere outside = save and close the keyboard ---------- */
+  (function () {
+    var swallowUntil = 0;
+    function editing() {
+      var a = document.activeElement;
+      return a && (a.tagName === 'TEXTAREA' || a.tagName === 'INPUT') ? a : null;
+    }
+    document.addEventListener('pointerdown', function (ev) {
+      var a = editing(); if (!a) return;
+      var t = ev.target, note = a.closest('.note');
+      if (a.contains(t)) return;                                              // still typing in the same field
+      var sameNote = note && note.contains(t);
+      if (sameNote && t.closest('textarea, input[type="text"]')) return;      // another field of the same note (list items)
+      a.blur();                                                               // data is already saved on every keystroke
+      if (!sameNote && !t.closest('#add')) swallowUntil = Date.now() + 700;   // this tap only closes the keyboard
+    }, true);
+    document.addEventListener('mousedown', function (ev) { if (Date.now() < swallowUntil) ev.preventDefault(); }, true);
+    document.addEventListener('click', function (ev) {
+      if (Date.now() < swallowUntil) { ev.preventDefault(); ev.stopPropagation(); swallowUntil = 0; }
+    }, true);
+    document.addEventListener('pointercancel', function () { swallowUntil = 0; }, true);   // it was a scroll, not a tap
+  })();
+
   applySettings();
   render();
   check();

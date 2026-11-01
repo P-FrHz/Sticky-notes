@@ -88,6 +88,14 @@
   .note:focus-within { transform: rotate(0deg) scale(1.02); z-index: 2; }
   .flat .note { transform: none; }
   .note.arch { opacity: .7; }
+  .note.done > :not(.bigcheck) { opacity: .5; }
+  .note.done textarea, .note.done .item input[type="text"] { text-decoration: line-through; }
+  .bigcheck {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    pointer-events: none; z-index: 3;
+    font-size: 6rem; line-height: 1; font-weight: 700;
+    color: #1e7a46; text-shadow: 0 2px 0 rgba(255,255,255,.55);
+  }
   .note.late .due { background: #b3261e; color: #fff; }
   .note.dragging {
     z-index: 20; transition: none; opacity: .95;
@@ -245,6 +253,8 @@
   <div class="row" id="optSize"></div>
   <h3>شكل الملاحظات</h3>
   <div class="row" id="optTilt"></div>
+  <h3>بقاء الملاحظة المنجزة في الصفحة قبل الأرشيف</h3>
+  <div class="row" id="optDone"></div>
 </section>
 
 <script>
@@ -276,11 +286,11 @@
   var notes = parse(KEY, []);
   if (!Array.isArray(notes)) notes = [];
   notes.forEach(function (n) {           // migrate older notes
-    if (n.done) { n.arch = true; n.archAt = n.archAt || Date.now(); }
-    delete n.done;
+    if (n.done && !n.doneAt) { n.arch = true; n.archAt = n.archAt || Date.now(); n.done = false; }   // old format
+    n.done = !!n.done;
     n.items = n.items || []; n.list = !!n.list; n.pin = !!n.pin; n.arch = !!n.arch;
   });
-  var settings = Object.assign({ theme: 'auto', wall: 0, font: 0, size: 1, tilt: true }, parse(SKEY, {}));
+  var settings = Object.assign({ theme: 'auto', wall: 0, font: 0, size: 1, tilt: true, doneDays: 2 }, parse(SKEY, {}));
 
   function save() { try { localStorage.setItem(KEY, JSON.stringify(notes)); } catch (e) {} }
   function saveS() { try { localStorage.setItem(SKEY, JSON.stringify(settings)); } catch (e) {} }
@@ -318,6 +328,7 @@
     buildOptions('optWall', WALLS, function () { return settings.wall; }, function (o, i) { settings.wall = i; }, true);
     buildOptions('optFont', FONTS, function () { return settings.font; }, function (o, i) { settings.font = i; });
     buildOptions('optSize', SIZES, function () { return settings.size; }, function (o, i) { settings.size = i; });
+    buildOptions('optDone', [{ n: 'يوم', v: 1 }, { n: 'يومين', v: 2 }, { n: '3 أيام', v: 3 }, { n: 'أسبوع', v: 7 }], function () { return settings.doneDays; }, function (o) { settings.doneDays = o.v; });
     buildOptions('optTilt', [{ n: 'مائلة', v: true }, { n: 'مستقيمة', v: false }], function () { return settings.tilt; }, function (o) { settings.tilt = o.v; });
   }
   var sheet = document.getElementById('sheet'), backdrop = document.getElementById('backdrop');
@@ -345,14 +356,14 @@
 
   /* ---------- render ---------- */
   function noteEl(n, opts) {
-    var late = n.due && !n.arch && n.due < Date.now();
-    var e = el('div', 'note' + (n.arch ? ' arch' : '') + (late ? ' late' : ''));
+    var late = n.due && !n.arch && !n.done && n.due < Date.now();
+    var e = el('div', 'note' + (n.arch ? ' arch' : '') + (n.done && !n.arch ? ' done' : '') + (late ? ' late' : ''));
     e.dataset.id = n.id;
     e.style.setProperty('--c', n.color);
     e.style.setProperty('--r', (((n.id % 5) - 2) * 1.1) + 'deg');
 
     var top = el('div', 'top');
-    if (!n.arch) {
+    if (!n.arch && !n.done) {
       var grip = btn('اسحب لإعادة الترتيب', '⋮⋮', 'ibtn grip', function () {});
       grip.addEventListener('pointerdown', function (ev) { startDrag(ev, e, grip); });
       grip.addEventListener('keydown', function (ev) { moveByKey(ev, n); });
@@ -366,7 +377,7 @@
     var ta = document.createElement('textarea');
     ta.value = n.text; ta.placeholder = n.list ? 'عنوان القائمة' : 'اكتب تذكيرك هنا';
     ta.setAttribute('aria-label', 'نص الملاحظة');
-    ta.readOnly = n.arch;
+    ta.readOnly = n.arch || n.done;
     var minH = n.list ? 40 : 90;
     ta.addEventListener('input', function () { n.text = ta.value; grow(ta, minH); save(); });
     e.appendChild(ta);
@@ -375,10 +386,10 @@
       var box = el('div', 'items');
       n.items.forEach(function (it, i) {
         var row = el('div', 'item' + (it.d ? ' d' : ''));
-        var cb = btn(it.d ? 'ألغِ التعليم' : 'علّم كمنجز', it.d ? '✓' : '', 'cb', function () { if (n.arch) return; it.d = !it.d; save(); render(); });
+        var cb = btn(it.d ? 'ألغِ التعليم' : 'علّم كمنجز', it.d ? '✓' : '', 'cb', function () { if (n.arch || n.done) return; it.d = !it.d; save(); render(); });
         row.appendChild(cb);
         var inp = document.createElement('input');
-        inp.type = 'text'; inp.value = it.t; inp.readOnly = n.arch; inp.setAttribute('aria-label', 'بند ' + (i + 1));
+        inp.type = 'text'; inp.value = it.t; inp.readOnly = n.arch || n.done; inp.setAttribute('aria-label', 'بند ' + (i + 1));
         inp.dataset.k = n.id + ':' + i;
         inp.addEventListener('input', function () { it.t = inp.value; save(); });
         inp.addEventListener('keydown', function (ev) {
@@ -386,11 +397,11 @@
           else if (ev.key === 'Backspace' && !inp.value) { ev.preventDefault(); n.items.splice(i, 1); save(); render({ focus: n.id + ':' + Math.max(0, i - 1) }); }
         });
         row.appendChild(inp);
-        if (!n.arch) row.appendChild(btn('احذف البند', '✕', 'ibtn x', function () { n.items.splice(i, 1); save(); render(); }));
+        if (!n.arch && !n.done) row.appendChild(btn('احذف البند', '✕', 'ibtn x', function () { n.items.splice(i, 1); save(); render(); }));
         box.appendChild(row);
       });
       e.appendChild(box);
-      if (!n.arch) {
+      if (!n.arch && !n.done) {
         var add = btn('أضف بند', '+ بند', 'additem', function () { n.items.push({ t: '', d: false }); save(); render({ focus: n.id + ':' + (n.items.length - 1) }); });
         e.appendChild(add);
       }
@@ -401,7 +412,10 @@
       var done = n.items.filter(function (x) { return x.d; }).length;
       var pr = el('span', 'prog'); pr.textContent = done + '/' + n.items.length; foot.appendChild(pr);
     }
-    if (!n.arch) {
+    if (n.done && !n.arch) {
+      var left = el('span', 'prog'); left.textContent = 'تنزل للأرشيف بعد ' + remaining(n); foot.appendChild(left);
+    }
+    if (!n.arch && !n.done) {
       if (n.due) {
         var chip = el('button', 'due'); chip.type = 'button'; chip.textContent = '⏰ ' + fmt(n.due);
         chip.addEventListener('click', function () { openPickers[n.id] = !openPickers[n.id]; render(); });
@@ -409,8 +423,12 @@
       }
     }
     var row2 = el('div', 'actions');
-    if (n.arch) {
-      row2.appendChild(btn('أرجع الملاحظة', '↺', 'ibtn', function () { n.arch = false; n.alerted = false; save(); render(); }));
+    if (n.done && !n.arch) {
+      row2.appendChild(btn('ألغِ الإنجاز', '↺', 'ibtn', function () { n.done = false; n.doneAt = null; n.alerted = false; save(); render(); }));
+      row2.appendChild(btn('انقلها للأرشيف الحين', '🗄', 'ibtn', function () { n.arch = true; n.archAt = Date.now(); save(); render(); }));
+      row2.appendChild(btn('احذف نهائيًا', '🗑', 'ibtn', function () { notes = notes.filter(function (x) { return x.id !== n.id; }); save(); render(); }));
+    } else if (n.arch) {
+      row2.appendChild(btn('أرجع الملاحظة', '↺', 'ibtn', function () { n.arch = false; n.done = false; n.doneAt = null; n.alerted = false; save(); render(); }));
       row2.appendChild(el('span', 'sp'));
       row2.appendChild(btn('احذف نهائيًا', '🗑', 'ibtn', function () { notes = notes.filter(function (x) { return x.id !== n.id; }); save(); render(); }));
     } else {
@@ -420,14 +438,16 @@
       var dotBtn = btn('غيّر اللون', '', 'ibtn', function () { n.color = nextColor(n.color); save(); render(); });
       var dot = el('span', 'dot'); dot.style.setProperty('--next', nextColor(n.color)); dotBtn.appendChild(dot);
       row2.appendChild(dotBtn);
-      row2.appendChild(btn('انقلها للأرشيف', '✓', 'ibtn', function () { n.arch = true; n.archAt = Date.now(); n.pin = false; save(); render(); }));
+      row2.appendChild(btn('تم، علّمها منجزة', '✓', 'ibtn', function () { n.done = true; n.doneAt = Date.now(); n.pin = false; save(); render(); }));
       row2.appendChild(btn('احذف', '🗑', 'ibtn', function () {
         if (!n.text.trim() && !n.items.length || confirm('تحذف هذي الملاحظة؟')) { notes = notes.filter(function (x) { return x.id !== n.id; }); save(); render(); }
       }));
     }
     e.appendChild(foot); e.appendChild(row2);
 
-    if (openPickers[n.id] && !n.arch) {
+    if (n.done && !n.arch) { var bc = el('div', 'bigcheck'); bc.textContent = '✓'; bc.setAttribute('aria-hidden', 'true'); e.appendChild(bc); }
+
+    if (openPickers[n.id] && !n.arch && !n.done) {
       var inp2 = document.createElement('input');
       inp2.type = 'datetime-local'; inp2.setAttribute('aria-label', 'وقت التذكير');
       if (n.due) inp2.value = toInput(n.due);
@@ -438,6 +458,20 @@
       e.appendChild(inp2);
     }
     return e;
+  }
+
+  function remaining(n) {
+    var ms = (n.doneAt || 0) + settings.doneDays * 864e5 - Date.now();
+    if (ms <= 0) return 'لحظات';
+    var h = Math.ceil(ms / 36e5);
+    return h >= 24 ? Math.ceil(h / 24) + ' يوم' : h + ' ساعة';
+  }
+  function sweep() {
+    var lim = settings.doneDays * 864e5, now = Date.now(), ch = false;
+    notes.forEach(function (n) {
+      if (n.done && !n.arch && now - (n.doneAt || 0) >= lim) { n.arch = true; n.archAt = now; ch = true; }
+    });
+    return ch;
   }
 
   function toggleList(n) {
@@ -481,8 +515,9 @@
       list.forEach(function (n) { g.appendChild(noteEl(n)); });
       main.appendChild(g);
     } else {
-      var pinned = list.filter(function (n) { return n.pin; });
-      var other = list.filter(function (n) { return !n.pin; });
+      var pinned = list.filter(function (n) { return n.pin && !n.done; });
+      var other = list.filter(function (n) { return !n.pin && !n.done; });
+      var doneList = list.filter(function (n) { return n.done; }).sort(function (a, b) { return (b.doneAt || 0) - (a.doneAt || 0); });
       if (pinned.length) {
         var l1 = el('div', 'group-label'); l1.textContent = 'مثبّتة'; main.appendChild(l1);
         var g1 = el('div', 'grid'); g1.id = 'gridPinned';
@@ -494,6 +529,12 @@
         var g2 = el('div', 'grid'); g2.id = 'gridOther';
         other.forEach(function (n) { g2.appendChild(noteEl(n)); });
         main.appendChild(g2);
+      }
+      if (doneList.length) {
+        var l3 = el('div', 'group-label'); l3.textContent = 'منجزة'; main.appendChild(l3);
+        var g3 = el('div', 'grid'); g3.id = 'gridDone';
+        doneList.forEach(function (n) { g3.appendChild(noteEl(n)); });
+        main.appendChild(g3);
       }
     }
     Array.prototype.forEach.call(main.querySelectorAll('textarea'), function (t) {
@@ -564,7 +605,7 @@
     var d = ev.key === 'ArrowLeft' || ev.key === 'ArrowDown' ? 1 : (ev.key === 'ArrowRight' || ev.key === 'ArrowUp' ? -1 : 0);
     if (!d) return;
     ev.preventDefault();
-    var group = notes.filter(function (x) { return !x.arch && x.pin === n.pin; });
+    var group = notes.filter(function (x) { return !x.arch && !x.done && x.pin === n.pin; });
     var gi = group.indexOf(n), tgt = group[gi + d];
     if (!tgt) return;
     var a = notes.indexOf(n), b = notes.indexOf(tgt);
@@ -594,15 +635,15 @@
     var snooze = el('button'); snooze.textContent = 'بعد 10 د';
     snooze.addEventListener('click', function () { n.due = Date.now() + 10 * 60000; n.alerted = false; save(); b.remove(); render(); });
     var ok = el('button'); ok.textContent = 'تم';
-    ok.addEventListener('click', function () { n.arch = true; n.archAt = Date.now(); n.pin = false; save(); b.remove(); render(); });
+    ok.addEventListener('click', function () { n.done = true; n.doneAt = Date.now(); n.pin = false; save(); b.remove(); render(); });
     b.appendChild(snooze); b.appendChild(ok);
     banners.appendChild(b);
     try { if (navigator.vibrate) navigator.vibrate(200); } catch (x) {}
   }
   function check() {
-    var now = Date.now(), changed = false;
+    var now = Date.now(), changed = sweep();
     notes.forEach(function (n) {
-      if (n.due && !n.arch && !n.alerted && n.due <= now) { n.alerted = true; changed = true; showBanner(n); }
+      if (n.due && !n.arch && !n.done && !n.alerted && n.due <= now) { n.alerted = true; changed = true; showBanner(n); }
     });
     if (changed) { save(); render(); }
   }

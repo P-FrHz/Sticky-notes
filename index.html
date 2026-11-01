@@ -90,12 +90,16 @@
   .note.arch { opacity: .7; }
   .note.done > :not(.bigcheck) { opacity: .5; }
   .note.done textarea, .note.done .item input[type="text"] { text-decoration: line-through; }
-  .bigcheck {
-    position: absolute; inset: 0; display: grid; place-items: center;
-    pointer-events: none; z-index: 3;
-    font-size: 6rem; line-height: 1; font-weight: 700;
-    color: #1e7a46; text-shadow: 0 2px 0 rgba(255,255,255,.55);
-  }
+  .bigcheck { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 3; }
+  .bigcheck { padding-bottom: 26px; }
+  .bigcheck svg { width: 70%; max-width: 128px; height: auto; overflow: visible; }
+  .bigcheck path { fill: none; stroke: #176b3c; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 0; }
+  .bigcheck .ring { stroke-width: 6; }
+  .bigcheck .tick { stroke-width: 9.5; }
+  .bigcheck.draw .ring { stroke-dashoffset: 1; animation: pen .5s ease-out forwards; }
+  .bigcheck.draw .t1 { stroke-dashoffset: 1; animation: pen .12s linear .5s forwards; }
+  .bigcheck.draw .t2 { stroke-dashoffset: 1; animation: pen .28s ease-out .62s forwards; }
+  @keyframes pen { to { stroke-dashoffset: 0; } }
   .note.late .due { background: #b3261e; color: #fff; }
   .note.dragging {
     z-index: 20; transition: none; opacity: .95;
@@ -219,6 +223,7 @@
   .swatch[aria-pressed="true"] { border-color: var(--accent); }
 
   @media (prefers-reduced-motion: reduce) {
+    .bigcheck path { animation: none !important; stroke-dashoffset: 0 !important; }
     .banner, .sheet { animation: none; } .note { transition: none; } body { transition: none; }
   }
 </style>
@@ -280,6 +285,12 @@
   var main = document.getElementById('main');
   var banners = document.getElementById('banners');
   var openPickers = {};
+  var justDone = null;
+  var PEN = '<svg viewBox="0 0 160 160" aria-hidden="true"><g transform="rotate(-10 80 80)">' +
+    '<path class="ring" pathLength="1" d="M124 50 C142 88 118 130 80 129 C43 128 26 94 37 63 C48 34 88 24 113 35 C128 41 134 53 136 62"/>' +
+    '<path class="tick t1" pathLength="1" d="M52 83 C58 89 64 96 71 106"/>' +
+    '<path class="tick t2" pathLength="1" d="M71 106 C80 85 98 63 119 49"/>' +
+    '</g></svg>';
   var view = 'notes';
 
   function parse(k, fb) { try { var d = JSON.parse(localStorage.getItem(k)); return d == null ? fb : d; } catch (e) { return fb; } }
@@ -438,14 +449,14 @@
       var dotBtn = btn('غيّر اللون', '', 'ibtn', function () { n.color = nextColor(n.color); save(); render(); });
       var dot = el('span', 'dot'); dot.style.setProperty('--next', nextColor(n.color)); dotBtn.appendChild(dot);
       row2.appendChild(dotBtn);
-      row2.appendChild(btn('تم، علّمها منجزة', '✓', 'ibtn', function () { n.done = true; n.doneAt = Date.now(); n.pin = false; save(); render(); }));
+      row2.appendChild(btn('تم، علّمها منجزة', '✓', 'ibtn', function () { n.done = true; n.doneAt = Date.now(); n.pin = false; save(); justDone = n.id; render(); justDone = null; }));
       row2.appendChild(btn('احذف', '🗑', 'ibtn', function () {
         if (!n.text.trim() && !n.items.length || confirm('تحذف هذي الملاحظة؟')) { notes = notes.filter(function (x) { return x.id !== n.id; }); save(); render(); }
       }));
     }
     e.appendChild(foot); e.appendChild(row2);
 
-    if (n.done && !n.arch) { var bc = el('div', 'bigcheck'); bc.textContent = '✓'; bc.setAttribute('aria-hidden', 'true'); e.appendChild(bc); }
+    if (n.done && !n.arch) { var bc = el('div', 'bigcheck' + (n.id === justDone ? ' draw' : '')); bc.innerHTML = PEN; e.appendChild(bc); }
 
     if (openPickers[n.id] && !n.arch && !n.done) {
       var inp2 = document.createElement('input');
@@ -635,7 +646,7 @@
     var snooze = el('button'); snooze.textContent = 'بعد 10 د';
     snooze.addEventListener('click', function () { n.due = Date.now() + 10 * 60000; n.alerted = false; save(); b.remove(); render(); });
     var ok = el('button'); ok.textContent = 'تم';
-    ok.addEventListener('click', function () { n.done = true; n.doneAt = Date.now(); n.pin = false; save(); b.remove(); render(); });
+    ok.addEventListener('click', function () { n.done = true; n.doneAt = Date.now(); n.pin = false; save(); b.remove(); justDone = n.id; render(); justDone = null; });
     b.appendChild(snooze); b.appendChild(ok);
     banners.appendChild(b);
     try { if (navigator.vibrate) navigator.vibrate(200); } catch (x) {}
